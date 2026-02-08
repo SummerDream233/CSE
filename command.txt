@@ -1,0 +1,10 @@
+# 训练 DCGAN 后计算 FID
+python main.py --mode train_gan --epochs 50
+python main.py --mode fid_gan --fid_n 5000
+
+# 训练 DDPM 后计算 FID
+python main.py --mode train_ddpm --epochs 200
+python main.py --mode fid_ddpm --fid_n 5000
+
+# 仅使用十分之一数据（加快实验）
+python main.py --mode train_gan --epochs 50 --data_fraction 0.1

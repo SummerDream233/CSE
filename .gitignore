@@ -1,0 +1,35 @@
+# 数据与模型（体积大，不宜上传）
+data/
+checkpoints/
+*.pt
+
+# 生成样本与日志
+samples/
+logs/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# 虚拟环境
+venv/
+.venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 系统与临时
+.DS_Store
+Thumbs.db
+*.log
