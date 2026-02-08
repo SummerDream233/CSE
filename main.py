@@ -8,7 +8,7 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--mode", type=str, required=True, choices=["train_gan", "train_ddpm", "fid_gan", "fid_ddpm"])
     parser.add_argument("--data_root", type=str, default="./data")
-    parser.add_argument("--data_fraction", type=float, default=0.01, help="使用训练数据的比例，如 0.1 表示十分之一。")
+    parser.add_argument("--data_fraction", type=float, default=0.1, help="使用训练数据的比例，如 0.1 表示十分之一。")
     parser.add_argument("--split", type=str, default="train", choices=["train", "test"], help="训练用 train，FID 真实分布用 test(val)。")
     parser.add_argument("--batch_size", type=int, default=128)
     parser.add_argument("--num_workers", type=int, default=4)

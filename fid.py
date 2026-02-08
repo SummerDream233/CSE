@@ -17,12 +17,13 @@ def compute_fid_for_model(args, model_type: str) -> float:
     model_type: "gan" 或 "ddpm"
     """
     device = torch.device("cuda" if torch.cuda.is_available() and not args.cpu else "cpu")
+    # 真实分布用完整数据，避免 data_fraction 过小导致样本不足（FID 要求 real/fake 均至少 2 个样本）
     _, dl = get_dataloader(
         args.data_root,
         args.batch_size,
         args.num_workers,
         split=args.fid_split,
-        data_fraction=args.data_fraction,
+        data_fraction=1.0,
         seed=args.seed,
     )
 
