@@ -14,6 +14,7 @@ from torchvision.utils import save_image, make_grid
 from tqdm import tqdm
 
 from utils import get_dataloader, ensure_dir, setup_train_logging, get_train_logger
+from fid import compute_fid_in_memory
 
 
 class SinusoidalTimeEmbedding(nn.Module):
@@ -205,7 +206,8 @@ def train_ddpm(args):
 
     ensure_dir(args.ckpt_dir)
     ensure_dir(args.sample_dir)
-    best_loss = float("inf")
+    best_fid = float("inf")
+    fid_n_eval = getattr(args, "fid_n_best", 1000)
 
     for epoch in range(1, args.epochs + 1):
         ddpm.train()
@@ -233,13 +235,16 @@ def train_ddpm(args):
                 grid = make_grid((samp + 1) / 2, nrow=8)
                 save_image(grid, os.path.join(args.sample_dir, f"ddpm_epoch_{epoch:04d}.png"))
 
-        if avg_loss < best_loss:
-            best_loss = avg_loss
-            path_best = os.path.join(args.ckpt_dir, "ddpm_best.pt")
-            torch.save(
-                {"ddpm": ddpm.state_dict(), "epoch": epoch, "args": vars(args), "loss": avg_loss},
-                path_best,
-            )
-            log.info("已更新最佳 checkpoint (loss=%.4f): %s", avg_loss, path_best)
+        if epoch % 5 == 0 or epoch == 1:
+            fid_val = compute_fid_in_memory(ddpm, "ddpm", args, device, fid_n=fid_n_eval)
+            log.info("Epoch %d  FID(%d)=%.4f", epoch, fid_n_eval, fid_val)
+            if fid_val < best_fid:
+                best_fid = fid_val
+                path_best = os.path.join(args.ckpt_dir, "ddpm_best.pt")
+                torch.save(
+                    {"ddpm": ddpm.state_dict(), "epoch": epoch, "args": vars(args), "fid": fid_val},
+                    path_best,
+                )
+                log.info("已更新最佳 checkpoint (FID=%.4f): %s", fid_val, path_best)
 
     log.info("=== DDPM 训练结束 ===")

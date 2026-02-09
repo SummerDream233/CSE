@@ -65,3 +65,41 @@ def compute_fid_for_model(args, model_type: str) -> float:
         raise ValueError("model_type 必须是 'gan' 或 'ddpm'")
 
     return float(fid.compute().item())
+
+
+@torch.no_grad()
+def compute_fid_in_memory(model, model_type: str, args, device: torch.device, fid_n: int = 1000) -> float:
+    """
+    用当前内存中的模型计算 FID（用于训练时按 FID 选 best）。
+    model_type: "gan" 时 model 为 G；"ddpm" 时 model 为 ddpm。
+    """
+    fid_batch = getattr(args, "fid_batch", 64)
+    _, dl = get_dataloader(
+        args.data_root,
+        args.batch_size,
+        args.num_workers,
+        split=args.fid_split,
+        data_fraction=1.0,
+        seed=args.seed,
+    )
+    fid = FrechetInceptionDistance(feature=2048, normalize=True).to(device)
+    real_count = 0
+    for x, _ in dl:
+        x = x.to(device, non_blocking=True)
+        u8 = images_to_uint8_0_255(x)
+        fid.update(u8, real=True)
+        real_count += u8.size(0)
+        if real_count >= fid_n:
+            break
+    if model_type == "gan":
+        G = model
+        G.eval()
+        fake = sample_gan(G, n=fid_n, z_dim=args.z_dim, device=device, batch=fid_batch)
+    else:
+        ddpm = model
+        ddpm.eval()
+        fake = ddpm.sample(n=fid_n, shape=(3, 64, 64), device=device, batch=fid_batch)
+    for i in range(0, fake.size(0), fid_batch):
+        chunk = fake[i : i + fid_batch].to(device)
+        fid.update(images_to_uint8_0_255(chunk), real=False)
+    return float(fid.compute().item())
