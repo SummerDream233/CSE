@@ -14,7 +14,6 @@ from torchvision.utils import save_image, make_grid
 from tqdm import tqdm
 
 from utils import get_dataloader, ensure_dir, setup_train_logging, get_train_logger
-from fid import compute_fid_in_memory
 
 
 class SinusoidalTimeEmbedding(nn.Module):
@@ -236,6 +235,7 @@ def train_ddpm(args):
                 save_image(grid, os.path.join(args.sample_dir, f"ddpm_epoch_{epoch:04d}.png"))
 
         if epoch % 5 == 0 or epoch == 1:
+            from fid import compute_fid_in_memory
             fid_val = compute_fid_in_memory(ddpm, "ddpm", args, device, fid_n=fid_n_eval)
             log.info("Epoch %d  FID(%d)=%.4f", epoch, fid_n_eval, fid_val)
             if fid_val < best_fid:
