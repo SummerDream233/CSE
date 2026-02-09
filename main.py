@@ -1,4 +1,5 @@
 import argparse
+import os
 from utils import set_seed
 from models import train_gan, train_ddpm
 from fid import compute_fid_for_model
@@ -19,6 +20,7 @@ def parse_args():
     parser.add_argument("--log_dir", type=str, default="./logs")
     parser.add_argument("--sample_dir", type=str, default="./samples")
     parser.add_argument("--sample_every", type=int, default=5)
+    parser.add_argument("--n_runs", type=int, default=1, help="重复实验次数，每轮使用不同 seed（seed, seed+1, ...），log/checkpoint/sample 存到各自子目录。")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--z_dim", type=int, default=128)
     parser.add_argument("--g_base", type=int, default=64)
@@ -37,12 +39,37 @@ def parse_args():
 
 def main():
     args = parse_args()
-    set_seed(args.seed)
+    base_ckpt = args.ckpt_dir
+    base_log = args.log_dir
+    base_sample = args.sample_dir
+    initial_seed = args.seed
 
     if args.mode == "train_gan":
-        train_gan(args)
+        for i in range(args.n_runs):
+            run_seed = initial_seed + i
+            set_seed(run_seed)
+            args.seed = run_seed
+            args.ckpt_dir = os.path.join(base_ckpt, f"seed_{run_seed}")
+            args.log_dir = os.path.join(base_log, f"seed_{run_seed}")
+            args.sample_dir = os.path.join(base_sample, f"seed_{run_seed}")
+            print(f"[{i+1}/{args.n_runs}] 训练 GAN, seed={run_seed}, ckpt_dir={args.ckpt_dir}")
+            train_gan(args)
+        if args.n_runs > 1:
+            from utils import aggregate_loss_logs
+            aggregate_loss_logs(base_log, "train_gan", seed_start=initial_seed, n_runs=args.n_runs)
     elif args.mode == "train_ddpm":
-        train_ddpm(args)
+        for i in range(args.n_runs):
+            run_seed = initial_seed + i
+            set_seed(run_seed)
+            args.seed = run_seed
+            args.ckpt_dir = os.path.join(base_ckpt, f"seed_{run_seed}")
+            args.log_dir = os.path.join(base_log, f"seed_{run_seed}")
+            args.sample_dir = os.path.join(base_sample, f"seed_{run_seed}")
+            print(f"[{i+1}/{args.n_runs}] 训练 DDPM, seed={run_seed}, ckpt_dir={args.ckpt_dir}")
+            train_ddpm(args)
+        if args.n_runs > 1:
+            from utils import aggregate_loss_logs
+            aggregate_loss_logs(base_log, "train_ddpm", seed_start=initial_seed, n_runs=args.n_runs)
     elif args.mode == "fid_gan":
         fid = compute_fid_for_model(args, model_type="gan")
         print(f"FID (GAN): {fid:.4f}")

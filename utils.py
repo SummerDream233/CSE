@@ -1,4 +1,5 @@
 import os
+import re
 import logging
 import torch
 from torch.utils.data import DataLoader, Subset, Dataset
@@ -91,6 +92,75 @@ def set_seed(seed: int = 42) -> None:
 def ensure_dir(path: str) -> None:
     os.makedirs(path, exist_ok=True)
 
+
+def aggregate_loss_logs(base_log_dir: str, run_name: str, seed_start: int, n_runs: int) -> None:
+    """
+    汇总多轮实验的 loss：从 base_log_dir/seed_X/run_name.log 解析 Epoch/loss，
+    按 epoch 计算均值与标准差，写出 CSV 与 summary 文本。
+    """
+    import math
+    # 收集每轮每 epoch 的 loss
+    gan_pattern = re.compile(r"Epoch\s+(\d+)/\d+\s+lossD=([\d.]+)\s+lossG=([\d.]+)")
+    ddpm_pattern = re.compile(r"Epoch\s+(\d+)/\d+\s+loss=([\d.]+)")
+    is_gan = "gan" in run_name.lower()
+
+    epoch_values = {}  # epoch -> list of (lossD, lossG) or list of loss
+
+    for i in range(n_runs):
+        seed = seed_start + i
+        log_path = os.path.join(base_log_dir, f"seed_{seed}", f"{run_name}.log")
+        if not os.path.isfile(log_path):
+            continue
+        with open(log_path, "r", encoding="utf-8") as f:
+            for line in f:
+                if is_gan:
+                    m = gan_pattern.search(line)
+                    if m:
+                        ep, ld, lg = int(m.group(1)), float(m.group(2)), float(m.group(3))
+                        epoch_values.setdefault(ep, []).append((ld, lg))
+                else:
+                    m = ddpm_pattern.search(line)
+                    if m:
+                        ep, l = int(m.group(1)), float(m.group(2))
+                        epoch_values.setdefault(ep, []).append(l)
+
+    if not epoch_values:
+        return
+
+    epochs = sorted(epoch_values.keys())
+    out_dir = base_log_dir
+    ensure_dir(out_dir)
+
+    if is_gan:
+        csv_path = os.path.join(out_dir, f"{run_name}_summary.csv")
+        with open(csv_path, "w", encoding="utf-8") as f:
+            f.write("epoch,lossD_mean,lossD_std,lossG_mean,lossG_std,n\n")
+            for ep in epochs:
+                vals = epoch_values[ep]
+                n = len(vals)
+                ld_list = [v[0] for v in vals]
+                lg_list = [v[1] for v in vals]
+                ld_mean = sum(ld_list) / n
+                lg_mean = sum(lg_list) / n
+                ld_std = math.sqrt(sum((x - ld_mean) ** 2 for x in ld_list) / n) if n > 1 else 0.0
+                lg_std = math.sqrt(sum((x - lg_mean) ** 2 for x in lg_list) / n) if n > 1 else 0.0
+                f.write(f"{ep},{ld_mean:.4f},{ld_std:.4f},{lg_mean:.4f},{lg_std:.4f},{n}\n")
+    else:
+        csv_path = os.path.join(out_dir, f"{run_name}_summary.csv")
+        with open(csv_path, "w", encoding="utf-8") as f:
+            f.write("epoch,loss_mean,loss_std,n\n")
+            for ep in epochs:
+                vals = epoch_values[ep]
+                n = len(vals)
+                mean = sum(vals) / n
+                std = math.sqrt(sum((x - mean) ** 2 for x in vals) / n) if n > 1 else 0.0
+                f.write(f"{ep},{mean:.4f},{std:.4f},{n}\n")
+
+    txt_path = os.path.join(out_dir, f"{run_name}_summary.txt")
+    with open(txt_path, "w", encoding="utf-8") as f:
+        f.write(f"汇总 {run_name}: {len(epochs)} 个 epoch, {n_runs} 轮 (seed {seed_start}..{seed_start + n_runs - 1})\n")
+        f.write(f"CSV: {csv_path}\n")
+    print(f"已汇总 loss -> {csv_path}")
 
 @torch.no_grad()
 def images_to_uint8_0_255(x: torch.Tensor) -> torch.Tensor:
