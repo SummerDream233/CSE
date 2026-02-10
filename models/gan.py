@@ -87,6 +87,9 @@ def train_gan(args):
     optG = torch.optim.Adam(G.parameters(), lr=args.lr, betas=(0.5, 0.999))
     optD = torch.optim.Adam(D.parameters(), lr=args.lr, betas=(0.5, 0.999))
     bce = nn.BCEWithLogitsLoss()
+    # Label smoothing：避免 D 过于自信，减轻 D 过强导致 G 梯度消失/崩溃
+    smooth_real = getattr(args, "label_smooth_real", 0.9)
+    smooth_fake = getattr(args, "label_smooth_fake", 0.1)
 
     ensure_dir(args.ckpt_dir)
     ensure_dir(args.sample_dir)
@@ -110,8 +113,8 @@ def train_gan(args):
             fake = G(z).detach()
             logits_real = D(real)
             logits_fake = D(fake)
-            y_real = torch.ones(bs, device=device)
-            y_fake = torch.zeros(bs, device=device)
+            y_real = torch.full((bs,), smooth_real, device=device)
+            y_fake = torch.full((bs,), smooth_fake, device=device)
             lossD = bce(logits_real, y_real) + bce(logits_fake, y_fake)
             optD.zero_grad(set_to_none=True)
             lossD.backward()
@@ -120,6 +123,7 @@ def train_gan(args):
             z = torch.randn(bs, args.z_dim, 1, 1, device=device)
             fake = G(z)
             logits_fake = D(fake)
+            # G 希望 D 把生成图判为“真”，目标用 smooth_real 保持一致
             lossG = bce(logits_fake, y_real)
             optG.zero_grad(set_to_none=True)
             lossG.backward()
