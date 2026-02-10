@@ -1,4 +1,5 @@
 import os
+import sys
 import torch
 import torch.nn as nn
 from torchvision.utils import save_image, make_grid
@@ -106,7 +107,7 @@ def train_gan(args):
     for epoch in range(1, args.epochs + 1):
         G.train()
         D.train()
-        pbar = tqdm(dl, desc=f"[GAN] Epoch {epoch}/{args.epochs}", leave=False)
+        pbar = tqdm(dl, desc=f"[GAN] Epoch {epoch}/{args.epochs}", leave=False, disable=not sys.stdout.isatty())
         sum_lossD = 0.0
         sum_lossG = 0.0
         n_batches = 0

@@ -1,5 +1,6 @@
 import math
 import os
+import sys
 from dataclasses import dataclass
 from typing import Tuple
 
@@ -205,7 +206,7 @@ def train_ddpm(args):
 
     for epoch in range(1, args.epochs + 1):
         ddpm.train()
-        pbar = tqdm(dl, desc=f"[DDPM] Epoch {epoch}/{args.epochs}", leave=False)
+        pbar = tqdm(dl, desc=f"[DDPM] Epoch {epoch}/{args.epochs}", leave=False, disable=not sys.stdout.isatty())
         sum_loss = 0.0
         n_batches = 0
         for x0, _ in pbar:

@@ -1,7 +1,7 @@
 # 训练 DCGAN 后计算 FID
-python main.py --mode train_gan --epochs 10000
+python main.py --mode train_gan --epochs 1000
 python main.py --mode fid_gan --fid_n 10000 --gan_ckpt ./checkpoints/gan_best.pt
 
 # 训练 DDPM 后计算 FID
-python main.py --mode train_ddpm --epochs 10000
+python main.py --mode train_ddpm --epochs 1000
 python main.py --mode fid_ddpm --fid_n 10000 --ddpm_ckpt ./checkpoints/ddpm_best.pt

@@ -2,6 +2,7 @@
 FID（Fréchet Inception Distance）计算：真实图与生成图分布比较。
 """
 
+import sys
 import torch
 from tqdm import tqdm
 from torchmetrics.image.fid import FrechetInceptionDistance
@@ -30,7 +31,7 @@ def compute_fid_for_model(args, model_type: str) -> float:
     fid = FrechetInceptionDistance(feature=2048, normalize=True).to(device)
 
     real_count = 0
-    for x, _ in tqdm(dl, desc="[FID] Real", leave=False):
+    for x, _ in tqdm(dl, desc="[FID] Real", leave=False, disable=not sys.stdout.isatty()):
         x = x.to(device, non_blocking=True)
         u8 = images_to_uint8_0_255(x)
         fid.update(u8, real=True)
@@ -44,7 +45,7 @@ def compute_fid_for_model(args, model_type: str) -> float:
         G.load_state_dict(ckpt["G"])
         G.eval()
         fake = sample_gan(G, n=args.fid_n, z_dim=args.z_dim, device=device, batch=args.fid_batch)
-        for i in tqdm(range(0, fake.size(0), args.fid_batch), desc="[FID] Fake(GAN)", leave=False):
+        for i in tqdm(range(0, fake.size(0), args.fid_batch), desc="[FID] Fake(GAN)", leave=False, disable=not sys.stdout.isatty()):
             chunk = fake[i : i + args.fid_batch].to(device)
             fid.update(images_to_uint8_0_255(chunk), real=False)
 
@@ -58,7 +59,7 @@ def compute_fid_for_model(args, model_type: str) -> float:
         ddpm.load_state_dict(ckpt["ddpm"])
         ddpm.eval()
         fake = ddpm.sample(n=args.fid_n, shape=(3, 64, 64), device=device, batch=args.fid_batch)
-        for i in tqdm(range(0, fake.size(0), args.fid_batch), desc="[FID] Fake(DDPM)", leave=False):
+        for i in tqdm(range(0, fake.size(0), args.fid_batch), desc="[FID] Fake(DDPM)", leave=False, disable=not sys.stdout.isatty()):
             chunk = fake[i : i + args.fid_batch].to(device)
             fid.update(images_to_uint8_0_255(chunk), real=False)
     else:
