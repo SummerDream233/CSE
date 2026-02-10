@@ -1,7 +1,3 @@
-"""
-DDPM：时间嵌入、ResBlock、UNet、扩散过程与训练。
-"""
-
 import math
 import os
 from dataclasses import dataclass
@@ -183,8 +179,8 @@ def train_ddpm(args):
     setup_train_logging(log_dir, "train_ddpm")
     log = get_train_logger()
     log.info("=== DDPM 训练开始 ===")
-    log.info("split=%s data_fraction=%s epochs=%d batch_size=%d lr=%s",
-             args.split, args.data_fraction, args.epochs, args.batch_size, args.lr)
+    log.info("split=%s epochs=%d batch_size=%d lr=%s",
+             args.split, args.epochs, args.batch_size, args.lr)
 
     device = torch.device("cuda" if torch.cuda.is_available() and not args.cpu else "cpu")
     _, dl = get_dataloader(
@@ -192,7 +188,6 @@ def train_ddpm(args):
         args.batch_size,
         args.num_workers,
         split=args.split,
-        data_fraction=args.data_fraction,
         seed=args.seed,
     )
 

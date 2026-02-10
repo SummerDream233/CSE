@@ -9,22 +9,22 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--mode", type=str, required=True, choices=["train_gan", "train_ddpm", "fid_gan", "fid_ddpm"])
     parser.add_argument("--data_root", type=str, default="./data")
-    parser.add_argument("--data_fraction", type=float, default=0.1, help="使用训练数据的比例，如 0.1 表示十分之一。")
     parser.add_argument("--split", type=str, default="train", choices=["train", "test"], help="训练用 train，FID 真实分布用 test(val)。")
     parser.add_argument("--batch_size", type=int, default=128)
     parser.add_argument("--num_workers", type=int, default=4)
-    parser.add_argument("--epochs", type=int, default=50)
+    parser.add_argument("--epochs", type=int, default=1000)
     parser.add_argument("--lr", type=float, default=2e-4)
     parser.add_argument("--cpu", action="store_true")
     parser.add_argument("--ckpt_dir", type=str, default="./checkpoints")
     parser.add_argument("--log_dir", type=str, default="./logs")
     parser.add_argument("--sample_dir", type=str, default="./samples")
     parser.add_argument("--sample_every", type=int, default=5)
-    parser.add_argument("--n_runs", type=int, default=1, help="重复实验次数，每轮使用不同 seed（seed, seed+1, ...），log/checkpoint/sample 存到各自子目录。")
-    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--seed", type=int, default=2026)
     parser.add_argument("--z_dim", type=int, default=128)
     parser.add_argument("--g_base", type=int, default=64)
     parser.add_argument("--d_base", type=int, default=64)
+    parser.add_argument("--gan_lr_schedule", type=str, default="cosine", choices=["none", "cosine"],
+                       help="GAN 学习率调度：cosine=余弦退火(后期 FID 易收敛)，none=恒定 lr。")
     parser.add_argument("--gan_ckpt", type=str, default="./checkpoints/gan_best.pt")
     parser.add_argument("--unet_base", type=int, default=64)
     parser.add_argument("--t_dim", type=int, default=256)
@@ -33,44 +33,21 @@ def parse_args():
     parser.add_argument("--beta_end", type=float, default=2e-2)
     parser.add_argument("--ddpm_ckpt", type=str, default="./checkpoints/ddpm_best.pt")
     parser.add_argument("--fid_n", type=int, default=500)
-    parser.add_argument("--fid_n_best", type=int, default=1000, help="训练时每 5 epoch 算 FID 选 best 使用的图片数。")
+    parser.add_argument("--fid_n_best", type=int, default=10000, help="训练时每 5 epoch 算 FID 选 best 使用的图片数。")
     parser.add_argument("--fid_batch", type=int, default=64)
     parser.add_argument("--fid_split", type=str, default="test", choices=["train", "test"], help="FID 真实分布所用划分，test 即 val 集。")
     return parser.parse_args()
 
 def main():
     args = parse_args()
-    base_ckpt = args.ckpt_dir
-    base_log = args.log_dir
-    base_sample = args.sample_dir
-    initial_seed = args.seed
+    set_seed(args.seed)
 
     if args.mode == "train_gan":
-        for i in range(args.n_runs):
-            run_seed = initial_seed + i
-            set_seed(run_seed)
-            args.seed = run_seed
-            args.ckpt_dir = os.path.join(base_ckpt, f"seed_{run_seed}")
-            args.log_dir = os.path.join(base_log, f"seed_{run_seed}")
-            args.sample_dir = os.path.join(base_sample, f"seed_{run_seed}")
-            print(f"[{i+1}/{args.n_runs}] 训练 GAN, seed={run_seed}, ckpt_dir={args.ckpt_dir}")
-            train_gan(args)
-        if args.n_runs > 1:
-            from utils import aggregate_loss_logs
-            aggregate_loss_logs(base_log, "train_gan", seed_start=initial_seed, n_runs=args.n_runs)
+        print(f"训练 GAN, seed={args.seed}, ckpt_dir={args.ckpt_dir}")
+        train_gan(args)
     elif args.mode == "train_ddpm":
-        for i in range(args.n_runs):
-            run_seed = initial_seed + i
-            set_seed(run_seed)
-            args.seed = run_seed
-            args.ckpt_dir = os.path.join(base_ckpt, f"seed_{run_seed}")
-            args.log_dir = os.path.join(base_log, f"seed_{run_seed}")
-            args.sample_dir = os.path.join(base_sample, f"seed_{run_seed}")
-            print(f"[{i+1}/{args.n_runs}] 训练 DDPM, seed={run_seed}, ckpt_dir={args.ckpt_dir}")
-            train_ddpm(args)
-        if args.n_runs > 1:
-            from utils import aggregate_loss_logs
-            aggregate_loss_logs(base_log, "train_ddpm", seed_start=initial_seed, n_runs=args.n_runs)
+        print(f"训练 DDPM, seed={args.seed}, ckpt_dir={args.ckpt_dir}")
+        train_ddpm(args)
     elif args.mode == "fid_gan":
         fid = compute_fid_for_model(args, model_type="gan")
         print(f"FID (GAN): {fid:.4f}")

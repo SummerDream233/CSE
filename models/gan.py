@@ -66,8 +66,8 @@ def train_gan(args):
     setup_train_logging(log_dir, "train_gan")
     log = get_train_logger()
     log.info("=== GAN 训练开始 ===")
-    log.info("split=%s data_fraction=%s epochs=%d batch_size=%d lr=%s",
-             args.split, args.data_fraction, args.epochs, args.batch_size, args.lr)
+    log.info("split=%s epochs=%d batch_size=%d lr=%s",
+             args.split, args.epochs, args.batch_size, args.lr)
 
     device = torch.device("cuda" if torch.cuda.is_available() and not args.cpu else "cpu")
     _, dl = get_dataloader(
@@ -75,7 +75,6 @@ def train_gan(args):
         args.batch_size,
         args.num_workers,
         split=args.split,
-        data_fraction=args.data_fraction,
         seed=args.seed,
     )
 
@@ -86,6 +85,13 @@ def train_gan(args):
 
     optG = torch.optim.Adam(G.parameters(), lr=args.lr, betas=(0.5, 0.999))
     optD = torch.optim.Adam(D.parameters(), lr=args.lr, betas=(0.5, 0.999))
+    lr_schedule = getattr(args, "gan_lr_schedule", "cosine")
+    if lr_schedule == "cosine":
+        schedulerG = torch.optim.lr_scheduler.CosineAnnealingLR(optG, T_max=args.epochs, eta_min=1e-6)
+        schedulerD = torch.optim.lr_scheduler.CosineAnnealingLR(optD, T_max=args.epochs, eta_min=1e-6)
+        log.info("GAN 学习率调度: cosine (eta_min=1e-6)")
+    else:
+        schedulerG = schedulerD = None
     bce = nn.BCEWithLogitsLoss()
     # Label smoothing：避免 D 过于自信，减轻 D 过强导致 G 梯度消失/崩溃
     smooth_real = getattr(args, "label_smooth_real", 0.9)
@@ -147,7 +153,8 @@ def train_gan(args):
         if epoch % 5 == 0 or epoch == 1:
             from fid import compute_fid_in_memory
             fid_val = compute_fid_in_memory(G, "gan", args, device, fid_n=fid_n_eval)
-            log.info("Epoch %d  FID(%d)=%.4f", epoch, fid_n_eval, fid_val)
+            lr_now = optG.param_groups[0]["lr"] if optG.param_groups else args.lr
+            log.info("Epoch %d  FID(%d)=%.4f  lr=%.2e", epoch, fid_n_eval, fid_val, lr_now)
             if fid_val < best_fid:
                 best_fid = fid_val
                 path_best = os.path.join(args.ckpt_dir, "gan_best.pt")
@@ -156,6 +163,9 @@ def train_gan(args):
                     path_best,
                 )
                 log.info("已更新最佳 checkpoint (FID=%.4f): %s", fid_val, path_best)
+        if schedulerG is not None and schedulerD is not None:
+            schedulerG.step()
+            schedulerD.step()
 
     log.info("=== GAN 训练结束 ===")
 
