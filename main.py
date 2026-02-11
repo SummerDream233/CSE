@@ -33,7 +33,7 @@ def parse_args():
     parser.add_argument("--beta_end", type=float, default=2e-2)
     parser.add_argument("--ddpm_ckpt", type=str, default="./checkpoints/ddpm_best.pt")
     parser.add_argument("--fid_n", type=int, default=500)
-    parser.add_argument("--fid_n_best", type=int, default=10000, help="训练时每 5 epoch 算 FID 选 best 使用的图片数。")
+    parser.add_argument("--fid_n_best", type=int, default=10000, help="训练 GAN 时每 5 epoch 算 FID 选 best 使用的图片数。")
     parser.add_argument("--fid_batch", type=int, default=64)
     parser.add_argument("--fid_split", type=str, default="test", choices=["train", "test"], help="FID 真实分布所用划分，test 即 val 集。")
     return parser.parse_args()

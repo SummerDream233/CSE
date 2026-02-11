@@ -205,7 +205,7 @@ def train_ddpm(args):
     ensure_dir(args.ckpt_dir)
     ensure_dir(args.sample_dir)
     best_fid = float("inf")
-    fid_n_eval = getattr(args, "fid_n_best", 1000)
+    fid_n_eval = getattr(args, "fid_n", 500)
 
     for epoch in range(1, args.epochs + 1):
         ddpm.train()
