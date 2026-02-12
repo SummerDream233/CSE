@@ -102,7 +102,7 @@ def train_gan(args):
     ensure_dir(args.sample_dir)
     fixed_z = torch.randn(64, args.z_dim, 1, 1, device=device)
     best_fid = float("inf")
-    fid_n_eval = getattr(args, "fid_n_best", 1000)
+    fid_n_eval = getattr(args, "fid_n", 500)
 
     for epoch in range(1, args.epochs + 1):
         G.train()

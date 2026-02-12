@@ -177,6 +177,42 @@ class DDPM(nn.Module):
             outs.append(x.cpu())
         return torch.cat(outs, dim=0)
 
+    @torch.no_grad()
+    def sample_ddim(
+        self,
+        n: int,
+        shape: Tuple[int, int, int],
+        device: torch.device,
+        batch: int = 32,
+        steps: int = 50,
+    ) -> torch.Tensor:
+        """DDIM 采样：步数远少于 T，训练时算 FID 用可大幅加速。"""
+        C, H, W = shape
+        T = self.cfg.T
+        # 子序列：从 T-1 到 0 均匀取 steps 个时刻（含 0）
+        if steps >= T:
+            timesteps = list(range(T - 1, -1, -1))
+        else:
+            step = max(1, (T - 1) // steps)
+            timesteps = list(range(T - 1, 0, -step)) + [0]
+        outs = []
+        for i in range(0, n, batch):
+            bs = min(batch, n - i)
+            x = torch.randn(bs, C, H, W, device=device)
+            for j in range(len(timesteps) - 1):
+                t = timesteps[j]
+                t_prev = timesteps[j + 1]
+                t_batch = torch.full((bs,), t, device=device, dtype=torch.long)
+                eps = self.eps_model(x, t_batch)
+                a_bar = self.a_bar[t].view(-1, 1, 1, 1)
+                a_bar_prev = self.a_bar[t_prev].view(-1, 1, 1, 1)
+                sqrt_one_minus_a_bar = self.sqrt_one_minus_a_bar[t].view(-1, 1, 1, 1)
+                sqrt_one_minus_a_bar_prev = torch.sqrt(1.0 - a_bar_prev)
+                x0_pred = (x - sqrt_one_minus_a_bar * eps) / (a_bar.clamp(1e-8).sqrt())
+                x = a_bar_prev.sqrt() * x0_pred + sqrt_one_minus_a_bar_prev * eps
+            outs.append(x.cpu())
+        return torch.cat(outs, dim=0)
+
 
 def train_ddpm(args):
     log_dir = getattr(args, "log_dir", "./logs")
@@ -235,6 +271,11 @@ def train_ddpm(args):
 
         if epoch % 5 == 0 or epoch == 1:
             from fid import compute_fid_in_memory
+            fid_steps = getattr(args, "ddpm_fid_steps", 50)
+            if fid_steps and fid_steps > 0:
+                log.info("Epoch %d  正在计算 FID（DDIM n=%d, steps=%d）...", epoch, fid_n_eval, fid_steps)
+            else:
+                log.info("Epoch %d  正在计算 FID（DDPM n=%d, T=%d 步）...", epoch, fid_n_eval, ddpm.cfg.T)
             fid_val = compute_fid_in_memory(ddpm, "ddpm", args, device, fid_n=fid_n_eval)
             log.info("Epoch %d  FID(%d)=%.4f", epoch, fid_n_eval, fid_val)
             if fid_val < best_fid:

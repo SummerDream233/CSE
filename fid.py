@@ -99,7 +99,11 @@ def compute_fid_in_memory(model, model_type: str, args, device: torch.device, fi
     else:
         ddpm = model
         ddpm.eval()
-        fake = ddpm.sample(n=fid_n, shape=(3, 64, 64), device=device, batch=fid_batch)
+        ddim_steps = getattr(args, "ddpm_fid_steps", None)
+        if ddim_steps is not None and ddim_steps > 0:
+            fake = ddpm.sample_ddim(n=fid_n, shape=(3, 64, 64), device=device, batch=fid_batch, steps=ddim_steps)
+        else:
+            fake = ddpm.sample(n=fid_n, shape=(3, 64, 64), device=device, batch=fid_batch)
     for i in range(0, fake.size(0), fid_batch):
         chunk = fake[i : i + fid_batch].to(device)
         fid.update(images_to_uint8_0_255(chunk), real=False)
